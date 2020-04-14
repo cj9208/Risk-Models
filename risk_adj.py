@@ -12,10 +12,14 @@ from scipy import linalg
 
 
 def Covariance_NW(data_cov,lambd,delay=2):
+    # return Newey-West estimate of covariance
+    # no modification for time period
+    #  i.e. if the input data is daily, the output is daily
     
     Tn = data_cov.shape[0]
     Fn = data_cov.shape[1]
     
+    # exponentially decay weights
     w = np.array([lambd**n for n in range(Tn)][::-1])
     w = w/w.sum()
     
@@ -29,16 +33,14 @@ def Covariance_NW(data_cov,lambd,delay=2):
     
     
     # Calculate the cov matrix
+    F_raw = 
     F_raw = np.zeros((Fn,Fn))
     for i in range(Fn):
         for j in range(Fn):
             cov_ij = np.sum( f_cov_raw[i] * f_cov_raw[j] * w ) 
             F_raw[i,j] = cov_ij
-    
-    
-    cov_nw = np.zeros((Fn,Fn))
-    F_NW = 21.*F_raw
-    
+
+    # NW modification for autocorrelation
     for d in range(1,delay+1):
         cov_nw_i = np.zeros((Fn,Fn))
         for i in range(Fn):
@@ -46,18 +48,18 @@ def Covariance_NW(data_cov,lambd,delay=2):
                 cov_ij = np.sum( f_cov_raw[i][:-d] * f_cov_raw[j][d:] * w[d:] ) / np.sum(w[d:])
                 cov_nw_i[i,j] = cov_ij
         
-        F_NW += 21.*( (1-d/(delay+1.)) * (cov_nw_i + cov_nw_i.T) )
+        F_NW += (1-d/(delay+1.)) * (cov_nw_i + cov_nw_i.T) 
     
     return F_NW
 
 
 
 
-def NW_adjusted(data,tau=90,length=100,n_start=100,n_forward=21,NW=1):
+def NW_adjusted(data, tau=90,length=100, n_start=100, n_forward=21, NW=True):
     '''
     Input:
     data        The pandas dataframe of factor return with the last column being dates
-    tau         The parameter of lambda
+    tau         Half life
     length      How many frames are used to calculate the covariance matrix
                 The length must be greater than Fn (the No. of factors)
     n_start     'n_start-length' to 'n_start' frames are used to get the covariance
@@ -75,7 +77,6 @@ def NW_adjusted(data,tau=90,length=100,n_start=100,n_forward=21,NW=1):
     Tn          No. of frames
     Fn          No. of factors
     
-    20180511
     '''
     
     if n_start<length:
@@ -92,9 +93,9 @@ def NW_adjusted(data,tau=90,length=100,n_start=100,n_forward=21,NW=1):
     
     # calculate Newey-West covariance
     if NW:
-        F_NW = Covariance_NW(data_cov,lambd)
+        F_NW = n_forward*Covariance_NW(data_cov,lambd)
     else:
-        F_NW = np.cov(data_cov.T)*21
+        F_NW = n_forward*np.cov(data_cov.T)
     
     # decomp of NW covariance 
     s, U = linalg.eigh(F_NW)
